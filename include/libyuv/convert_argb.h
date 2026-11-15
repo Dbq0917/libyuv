@@ -40,6 +40,42 @@ LIBYUV_API extern const struct YuvConstants kYvuF709Constants;   // BT.709 full
 LIBYUV_API extern const struct YuvConstants kYvu2020Constants;   // BT.2020
 LIBYUV_API extern const struct YuvConstants kYvuV2020Constants;  // BT.2020 full
 
+// Color matrix (primaries / transfer coefficients) carried by the source.
+// These match the matrix_coefficients signalled in H.264/HEVC VUI and the
+// color primaries reported by Android (COLOR_SpaceTransfer) and iOS
+// (CVImageBuffer attachments). The bare YUV formats (I420, NV12, ...) do not
+// carry this tag, so the caller must pass it explicitly to the Matrix entry
+// points instead of relying on the BT.601 default.
+enum ColorMatrixId {
+  kColorMatrixUnknown = 0,  // Fall back to BT.601 limited range.
+  kColorMatrixBT601 = 1,    // ITU-R BT.601 / SMPTE 170M.
+  kColorMatrixBT709 = 2,    // ITU-R BT.709. Default for HD phone capture.
+  kColorMatrixBT2020 = 3,   // ITU-R BT.2020 / BT.2100 (HDR / UHD capture).
+};
+
+// Range of the luma/chroma samples. Matches video_full_range_flag:
+// limited ("MPEG"/"video") range maps Y to 16..235 and UV to 16..240,
+// full ("JPEG") range maps both to 0..255. Android full-range NV12 and
+// JPEG stills use kColorRangeFull; most AVC/HEVC streams use limited range.
+enum ColorRangeId {
+  kColorRangeLimited = 0,
+  kColorRangeFull = 1,
+};
+
+// Select the YUV-to-RGB constants for a tagged source. This is a constant
+// table lookup: it does not touch pixel data and adds no per-row or
+// per-pixel cost, so it can be called once per frame before the matching
+// *Matrix() conversion function.
+// Pass the matrix and range parsed from the container/codec metadata (e.g.
+// MediaFormat KEY_COLOR_FORMAT / color-standard on Android,
+// kCVImageBufferYCbCrMatrixKey on iOS). kColorMatrixUnknown is treated as
+// BT.601 limited range, which is the historical libyuv default and keeps
+// untagged callers bit-identical to the non-Matrix entry points.
+LIBYUV_API
+const struct YuvConstants* YuvConstantsForColor(
+    enum ColorMatrixId matrix_id,
+    enum ColorRangeId range_id);
+
 // Macros for end swapped destination Matrix conversions.
 // Swap UV and pass mirrored kYvuJPEGConstants matrix.
 // TODO(fbarchard): Add macro for each Matrix function.

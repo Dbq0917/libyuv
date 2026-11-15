@@ -1235,6 +1235,69 @@ TEST_F(LibYUVConvertTest, TestYToARGB) {
   }
 }
 
+TEST_F(LibYUVConvertTest, TestYuvConstantsForColor) {
+  // Limited range selections.
+  EXPECT_EQ(&kYuvI601Constants,
+            YuvConstantsForColor(kColorMatrixUnknown, kColorRangeLimited));
+  EXPECT_EQ(&kYuvI601Constants,
+            YuvConstantsForColor(kColorMatrixBT601, kColorRangeLimited));
+  EXPECT_EQ(&kYuvH709Constants,
+            YuvConstantsForColor(kColorMatrixBT709, kColorRangeLimited));
+  EXPECT_EQ(&kYuv2020Constants,
+            YuvConstantsForColor(kColorMatrixBT2020, kColorRangeLimited));
+
+  // Full range selections.
+  EXPECT_EQ(&kYuvJPEGConstants,
+            YuvConstantsForColor(kColorMatrixUnknown, kColorRangeFull));
+  EXPECT_EQ(&kYuvJPEGConstants,
+            YuvConstantsForColor(kColorMatrixBT601, kColorRangeFull));
+  EXPECT_EQ(&kYuvF709Constants,
+            YuvConstantsForColor(kColorMatrixBT709, kColorRangeFull));
+  EXPECT_EQ(&kYuvV2020Constants,
+            YuvConstantsForColor(kColorMatrixBT2020, kColorRangeFull));
+
+  // Out of range matrix ids degrade to the BT.601 default rather than
+  // indexing out of bounds.
+  EXPECT_EQ(&kYuvI601Constants,
+            YuvConstantsForColor(static_cast<ColorMatrixId>(99),
+                                 kColorRangeLimited));
+  EXPECT_EQ(&kYuvJPEGConstants,
+            YuvConstantsForColor(static_cast<ColorMatrixId>(-1),
+                                 kColorRangeFull));
+
+  // A tagged BT.709 frame must decode differently from the BT.601 default:
+  // feed identical chroma offsets through both matrices and confirm output
+  // diverges, proving the tag actually changes the coefficients used.
+  const int width = 16;
+  const int height = 16;
+  align_buffer_page_end(src_y, width * height);
+  align_buffer_page_end(src_u, (width / 2) * (height / 2));
+  align_buffer_page_end(src_v, (width / 2) * (height / 2));
+  align_buffer_page_end(argb_601, width * height * 4);
+  align_buffer_page_end(argb_709, width * height * 4);
+  memset(src_y, 128, width * height);
+  memset(src_u, 64, (width / 2) * (height / 2));
+  memset(src_v, 192, (width / 2) * (height / 2));
+
+  I420ToARGBMatrix(src_y, width, src_u, width / 2, src_v, width / 2, argb_601,
+                   width * 4,
+                   YuvConstantsForColor(kColorMatrixBT601,
+                                         kColorRangeLimited),
+                   width, height);
+  I420ToARGBMatrix(src_y, width, src_u, width / 2, src_v, width / 2, argb_709,
+                   width * 4,
+                   YuvConstantsForColor(kColorMatrixBT709,
+                                         kColorRangeLimited),
+                   width, height);
+  EXPECT_NE(0, memcmp(argb_601, argb_709, width * height * 4));
+
+  free_aligned_buffer_page_end(src_y);
+  free_aligned_buffer_page_end(src_u);
+  free_aligned_buffer_page_end(src_v);
+  free_aligned_buffer_page_end(argb_601);
+  free_aligned_buffer_page_end(argb_709);
+}
+
 static const uint8_t kNoDither4x4[16] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };

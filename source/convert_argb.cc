@@ -27,6 +27,32 @@ namespace libyuv {
 extern "C" {
 #endif
 
+// Select YUV to RGB constants from the color matrix and range tags carried
+// alongside the source frames. The tables are static const, so this resolves
+// to a single pointer load and never enters the per-pixel conversion path.
+LIBYUV_API
+const struct YuvConstants* YuvConstantsForColor(
+    enum ColorMatrixId matrix_id,
+    enum ColorRangeId range_id) {
+  static const struct YuvConstants* const kLimitedRange[4] = {
+      &kYuvI601Constants,   // kColorMatrixUnknown -> BT.601 default.
+      &kYuvI601Constants,   // kColorMatrixBT601.
+      &kYuvH709Constants,   // kColorMatrixBT709.
+      &kYuv2020Constants,   // kColorMatrixBT2020.
+  };
+  static const struct YuvConstants* const kFullRange[4] = {
+      &kYuvJPEGConstants,   // kColorMatrixUnknown -> BT.601 full default.
+      &kYuvJPEGConstants,   // kColorMatrixBT601.
+      &kYuvF709Constants,   // kColorMatrixBT709.
+      &kYuvV2020Constants,  // kColorMatrixBT2020.
+  };
+  if (matrix_id < 0 || matrix_id > kColorMatrixBT2020) {
+    matrix_id = kColorMatrixUnknown;
+  }
+  return (range_id == kColorRangeFull) ? kFullRange[matrix_id]
+                                       : kLimitedRange[matrix_id];
+}
+
 // Copy ARGB with optional flipping
 LIBYUV_API
 int ARGBCopy(const uint8_t* src_argb,
